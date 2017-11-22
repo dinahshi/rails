@@ -765,6 +765,7 @@ if ActiveRecord::Base.connection.supports_bulk_alter?
         with_bulk_change_table do |t|
           t.column :name, :string
           t.string :qualification, :experience
+          # require "byebug"; byebug
           t.integer :age, default: 0
           t.date :birthdate
           t.timestamps null: true
@@ -801,11 +802,20 @@ if ActiveRecord::Base.connection.supports_bulk_alter?
         t.integer :age
       end
 
-      # Adding an index fires a query every time to check if an index already exists or not
-      assert_queries(3) do
-        with_bulk_change_table do |t|
-          t.index :username, unique: true, name: :awesome_username_index
-          t.index [:name, :age]
+      if current_adapter?(:PostgreSQLAdapter)
+        assert_queries(2) do
+          with_bulk_change_table do |t|
+            t.index :username, unique: true, name: :awesome_username_index
+            t.index [:name, :age]
+          end
+        end
+      else
+        # Adding an index fires a query every time to check if an index already exists or not
+        assert_queries(3) do
+          with_bulk_change_table do |t|
+            t.index :username, unique: true, name: :awesome_username_index
+            t.index [:name, :age]
+          end
         end
       end
 
@@ -826,10 +836,19 @@ if ActiveRecord::Base.connection.supports_bulk_alter?
 
       assert index(:index_delete_me_on_name)
 
-      assert_queries(3) do
-        with_bulk_change_table do |t|
-          t.remove_index :name
-          t.index :name, name: :new_name_index, unique: true
+      if current_adapter?(:PostgreSQLAdapter)
+        assert_queries(2) do
+          with_bulk_change_table do |t|
+            t.remove_index :name
+            t.index :name, name: :new_name_index, unique: true
+          end
+        end
+      else
+        assert_queries(3) do
+          with_bulk_change_table do |t|
+            t.remove_index :name
+            t.index :name, name: :new_name_index, unique: true
+          end
         end
       end
 

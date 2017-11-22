@@ -375,6 +375,101 @@ module ActiveRecord
           SQL
         end
 
+        def add_column_sql(table_name, column_name, type, options = {})
+          td = create_table_definition(table_name)
+          cd = td.new_column_definition(column_name, type, options)
+          schema_creation.accept(AddColumnDefinition.new(cd))
+        end
+
+        def change_column_sql(table_name, column_name, type, options = {})
+          column = column_for(table_name, column_name)
+
+          unless options.key?(:default)
+            options[:default] = column.default
+          end
+
+          unless options.key?(:null)
+            options[:null] = column.null
+          end
+
+          unless options.key?(:comment)
+            options[:comment] = column.comment
+          end
+
+          td = create_table_definition(table_name)
+          cd = td.new_column_definition(column.name, type, options)
+          schema_creation.accept(ChangeColumnDefinition.new(cd, column.name))
+        end
+
+        def rename_column_sql(table_name, column_name, new_column_name)
+          column  = column_for(table_name, column_name)
+          options = {
+            default: column.default,
+            null: column.null,
+            auto_increment: column.auto_increment?
+          }
+
+          current_type = exec_query("SHOW COLUMNS FROM #{quote_table_name(table_name)} LIKE #{quote(column_name)}", "SCHEMA").first["Type"]
+          td = create_table_definition(table_name)
+          cd = td.new_column_definition(new_column_name, current_type, options)
+          schema_creation.accept(ChangeColumnDefinition.new(cd, column.name))
+        end
+
+        def remove_column_sql(table_name, column_name, type = nil, options = {})
+          "DROP COLUMN #{quote_column_name(column_name)}"
+        end
+
+        def remove_columns_sql(table_name, *column_names)
+          column_names.map { |column_name| remove_column_sql(table_name, column_name) }
+        end
+
+        # psql specific
+        def add_index_sql(table_name, column_name, options = {})
+          puts options
+          index_name, index_type, index_columns, index_options, index_algorithm, index_using, comment = add_index_options(table_name, column_name, options)
+          # for adding table constraint (unique/primary) using an existing index
+          # "ADD #{index_type} USING INDEX #{quote_column_name(index_name)}"
+          sql = "CREATE #{index_type} INDEX #{index_algorithm} #{quote_column_name(index_name)} ON #{quote_table_name(table_name)} #{index_using} (#{index_columns})#{index_options}"
+          if comment
+            sql += "COMMENT ON INDEX #{quote_column_name(index_name)} IS #{quote(comment)}"
+          end
+          sql
+        end
+
+        def remove_index_sql(table_name, options = {})
+          index_name = index_name_for_remove(table_name, options)
+          "DROP INDEX #{index_name}"
+        end
+
+        def add_timestamps_sql(table_name, options = {})
+          [add_column_sql(table_name, :created_at, :datetime, options), add_column_sql(table_name, :updated_at, :datetime, options)]
+        end
+
+        def remove_timestamps_sql(table_name, options = {})
+          [remove_column_sql(table_name, :updated_at), remove_column_sql(table_name, :created_at)]
+        end
+
+        def bulk_change_table(table_name, operations) #:nodoc:
+          sqls = operations.flat_map do |command, args|
+            table, arguments = args.shift, args
+            method = :"#{command}_sql"
+
+            if respond_to?(method, true)
+              send(method, table, *arguments)
+            else
+              raise "Unknown method called : #{method}(#{arguments.inspect})"
+            end
+          end.slice_before{|op| op.start_with?("CREATE", "DROP")}.map{|op| op.join(", ")}
+
+          sqls.map do |ops|
+            unless ops.start_with?("CREATE", "DROP")
+              ops = "ALTER TABLE #{quote_table_name(table_name)} #{ops}"
+            end
+            puts ops
+            execute(ops)
+          end
+        end
+
         # Renames a table.
         # Also renames a table's primary key sequence if the sequence name exists and
         # matches the Active Record default.
