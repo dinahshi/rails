@@ -381,26 +381,6 @@ module ActiveRecord
           schema_creation.accept(AddColumnDefinition.new(cd))
         end
 
-        def change_column_sql(table_name, column_name, type, options = {})
-          column = column_for(table_name, column_name)
-
-          unless options.key?(:default)
-            options[:default] = column.default
-          end
-
-          unless options.key?(:null)
-            options[:null] = column.null
-          end
-
-          unless options.key?(:comment)
-            options[:comment] = column.comment
-          end
-
-          td = create_table_definition(table_name)
-          cd = td.new_column_definition(column.name, type, options)
-          schema_creation.accept(ChangeColumnDefinition.new(cd, column.name))
-        end
-
         def rename_column_sql(table_name, column_name, new_column_name)
           column  = column_for(table_name, column_name)
           options = {
@@ -425,7 +405,6 @@ module ActiveRecord
 
         # psql specific
         def add_index_sql(table_name, column_name, options = {})
-          puts options
           index_name, index_type, index_columns, index_options, index_algorithm, index_using, comment = add_index_options(table_name, column_name, options)
           # for adding table constraint (unique/primary) using an existing index
           # "ADD #{index_type} USING INDEX #{quote_column_name(index_name)}"
@@ -450,6 +429,14 @@ module ActiveRecord
         end
 
         def bulk_change_table(table_name, operations) #:nodoc:
+          chunks = operations.slice_before{|command, args| [:add_index, :remove_index].include?(command)}
+          chunks.map do |chunk|
+            sql = bulk_change_table_helper(table_name, chunk)
+            execute(sql)
+          end
+        end
+
+        def bulk_change_table_helper(table_name, operations) #:nodoc:
           sqls = operations.flat_map do |command, args|
             table, arguments = args.shift, args
             method = :"#{command}_sql"
@@ -459,16 +446,29 @@ module ActiveRecord
             else
               raise "Unknown method called : #{method}(#{arguments.inspect})"
             end
-          end.slice_before{|op| op.start_with?("CREATE", "DROP")}.map{|op| op.join(", ")}
+          end.join(", ")
 
-          sqls.map do |ops|
-            unless ops.start_with?("CREATE", "DROP")
-              ops = "ALTER TABLE #{quote_table_name(table_name)} #{ops}"
-            end
-            puts ops
-            execute(ops)
+          if [:add_index, :remove_index].include? operations.first.first
+            sqls
+          else
+            "ALTER TABLE #{quote_table_name(table_name)} #{sqls}"
           end
         end
+
+        # operations = [[:add_column, [:delete_me, :name, :string, {}], nil], [:add_index, [:delete_me, :name, {}], nil]]
+        # chunks = operations.slice_before{|command, args| [:add_index, :remove_index].include?(command)}
+        # chunks.map do |operations|
+        #   operations.flat_map do |command, args|
+        #     table, arguments = args.shift, args
+        #     method = :"#{command}_sql"
+        #
+        #     if respond_to?(method, true)
+        #       send(method, table, *arguments)
+        #     else
+        #       raise "Unknown method called : #{method}(#{arguments.inspect})"
+        #     end
+        #   end.join(", ")
+        # end
 
         # Renames a table.
         # Also renames a table's primary key sequence if the sequence name exists and
@@ -518,6 +518,50 @@ module ActiveRecord
           change_column_default(table_name, column_name, options[:default]) if options.key?(:default)
           change_column_null(table_name, column_name, options[:null], options[:default]) if options.key?(:null)
           change_column_comment(table_name, column_name, options[:comment]) if options.key?(:comment)
+        end
+
+        def change_column_sql(table_name, column_name, type, options = {})
+          clear_cache!
+          quoted_table_name = quote_table_name(table_name)
+          quoted_column_name = quote_column_name(column_name)
+          sql_type = type_to_sql(type, options)
+          sql = "ALTER COLUMN #{quoted_column_name} TYPE #{sql_type}".dup
+          if options[:collation]
+            sql << " COLLATE \"#{options[:collation]}\""
+          end
+          if options[:using]
+            sql << " USING #{options[:using]}"
+          elsif options[:cast_as]
+            cast_as_type = type_to_sql(options[:cast_as], options)
+            sql << " USING CAST(#{quoted_column_name} AS #{cast_as_type})"
+          end
+
+          sql_actions = []
+          sql_actions << change_column_default_sql(table_name, column_name, options[:default]) if options.key?(:default)
+          # change_column_null(table_name, column_name, options[:null], options[:default]) if options.key?(:null)
+          # change_column_comment(table_name, column_name, options[:comment]) if options.key?(:comment)
+          if sql_actions.present?
+            "#{sql}, #{sql_actions.join(", ")}"
+          else
+            sql
+          end
+        end
+
+        # Changes the default value of a table column.
+        def change_column_default_sql(table_name, column_name, default_or_changes) # :nodoc:
+          clear_cache!
+          column = column_for(table_name, column_name)
+          return unless column
+
+          default = extract_new_default_value(default_or_changes)
+          alter_column_query = "ALTER COLUMN #{quote_column_name(column_name)} %s"
+          if default.nil?
+            # <tt>DEFAULT NULL</tt> results in the same behavior as <tt>DROP DEFAULT</tt>. However, PostgreSQL will
+            # cast the default to the columns type, which leaves us with a default like "default NULL::character varying".
+            alter_column_query % "DROP DEFAULT"
+          else
+            alter_column_query % "SET DEFAULT #{quote_default_expression(default, column)}"
+          end
         end
 
         # Changes the default value of a table column.
