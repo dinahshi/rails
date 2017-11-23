@@ -20,7 +20,6 @@ module ActiveRecord
           end
 
           def visit_ChangeColumnDefinition(o)
-            require "byebug"; byebug
             o = o.column
             o.sql_type = type_to_sql(o.type, o.options)
             column_sql = "#{quote_column_name(o.name)}".dup

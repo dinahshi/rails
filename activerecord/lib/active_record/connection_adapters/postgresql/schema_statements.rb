@@ -403,23 +403,6 @@ module ActiveRecord
           column_names.map { |column_name| remove_column_sql(table_name, column_name) }
         end
 
-        # psql specific
-        def add_index_sql(table_name, column_name, options = {})
-          index_name, index_type, index_columns, index_options, index_algorithm, index_using, comment = add_index_options(table_name, column_name, options)
-          # for adding table constraint (unique/primary) using an existing index
-          # "ADD #{index_type} USING INDEX #{quote_column_name(index_name)}"
-          sql = "CREATE #{index_type} INDEX #{index_algorithm} #{quote_column_name(index_name)} ON #{quote_table_name(table_name)} #{index_using} (#{index_columns})#{index_options}"
-          if comment
-            sql += "COMMENT ON INDEX #{quote_column_name(index_name)} IS #{quote(comment)}"
-          end
-          sql
-        end
-
-        def remove_index_sql(table_name, options = {})
-          index_name = index_name_for_remove(table_name, options)
-          "DROP INDEX #{index_name}"
-        end
-
         def add_timestamps_sql(table_name, options = {})
           [add_column_sql(table_name, :created_at, :datetime, options), add_column_sql(table_name, :updated_at, :datetime, options)]
         end
@@ -454,21 +437,6 @@ module ActiveRecord
             "ALTER TABLE #{quote_table_name(table_name)} #{sqls}"
           end
         end
-
-        # operations = [[:add_column, [:delete_me, :name, :string, {}], nil], [:add_index, [:delete_me, :name, {}], nil]]
-        # chunks = operations.slice_before{|command, args| [:add_index, :remove_index].include?(command)}
-        # chunks.map do |operations|
-        #   operations.flat_map do |command, args|
-        #     table, arguments = args.shift, args
-        #     method = :"#{command}_sql"
-        #
-        #     if respond_to?(method, true)
-        #       send(method, table, *arguments)
-        #     else
-        #       raise "Unknown method called : #{method}(#{arguments.inspect})"
-        #     end
-        #   end.join(", ")
-        # end
 
         # Renames a table.
         # Also renames a table's primary key sequence if the sequence name exists and
@@ -609,14 +577,18 @@ module ActiveRecord
           rename_column_indexes(table_name, column_name, new_column_name)
         end
 
-        def add_index(table_name, column_name, options = {}) #:nodoc:
+        def add_index_sql(table_name, column_name, options = {})
           index_name, index_type, index_columns, index_options, index_algorithm, index_using, comment = add_index_options(table_name, column_name, options)
-          execute("CREATE #{index_type} INDEX #{index_algorithm} #{quote_column_name(index_name)} ON #{quote_table_name(table_name)} #{index_using} (#{index_columns})#{index_options}").tap do
-            execute "COMMENT ON INDEX #{quote_column_name(index_name)} IS #{quote(comment)}" if comment
-          end
+          sql = "CREATE #{index_type} INDEX #{index_algorithm} #{quote_column_name(index_name)} ON #{quote_table_name(table_name)} #{index_using} (#{index_columns})#{index_options}"
+          sql << "; COMMENT ON INDEX #{quote_column_name(index_name)} IS #{quote(comment)}" if comment
+          sql
         end
 
-        def remove_index(table_name, options = {}) #:nodoc:
+        def add_index(table_name, column_name, options = {}) #:nodoc:
+          execute add_index_sql(table_name, column_name, options)
+        end
+
+        def remove_index_sql(table_name, options = {})
           table = Utils.extract_schema_qualified_name(table_name.to_s)
 
           if options.is_a?(Hash) && options.key?(:name)
@@ -637,7 +609,11 @@ module ActiveRecord
                 raise ArgumentError.new("Algorithm must be one of the following: #{index_algorithms.keys.map(&:inspect).join(', ')}")
               end
             end
-          execute "DROP INDEX #{algorithm} #{quote_table_name(index_to_remove)}"
+          "DROP INDEX #{algorithm} #{quote_table_name(index_to_remove)}"
+        end
+
+        def remove_index(table_name, options = {}) #:nodoc:
+          execute remove_index_sql(table_name, options)
         end
 
         # Renames an index of a table. Raises error if length of new
