@@ -466,31 +466,8 @@ module ActiveRecord
           change_column_comment(table_name, column_name, options[:comment]) if options.key?(:comment)
         end
 
-        def change_column(table_name, column_name, type, options = {}) #:nodoc:
-          clear_cache!
-          quoted_table_name = quote_table_name(table_name)
-          quoted_column_name = quote_column_name(column_name)
-          sql_type = type_to_sql(type, options)
-          sql = "ALTER TABLE #{quoted_table_name} ALTER COLUMN #{quoted_column_name} TYPE #{sql_type}".dup
-          if options[:collation]
-            sql << " COLLATE \"#{options[:collation]}\""
-          end
-          if options[:using]
-            sql << " USING #{options[:using]}"
-          elsif options[:cast_as]
-            cast_as_type = type_to_sql(options[:cast_as], options)
-            sql << " USING CAST(#{quoted_column_name} AS #{cast_as_type})"
-          end
-          execute sql
-
-          change_column_default(table_name, column_name, options[:default]) if options.key?(:default)
-          change_column_null(table_name, column_name, options[:null], options[:default]) if options.key?(:null)
-          change_column_comment(table_name, column_name, options[:comment]) if options.key?(:comment)
-        end
-
         def change_column_sql(table_name, column_name, type, options = {})
           clear_cache!
-          quoted_table_name = quote_table_name(table_name)
           quoted_column_name = quote_column_name(column_name)
           sql_type = type_to_sql(type, options)
           sql = "ALTER COLUMN #{quoted_column_name} TYPE #{sql_type}".dup
@@ -506,13 +483,22 @@ module ActiveRecord
 
           sql_actions = []
           sql_actions << change_column_default_sql(table_name, column_name, options[:default]) if options.key?(:default)
-          # change_column_null(table_name, column_name, options[:null], options[:default]) if options.key?(:null)
+          sql_actions << change_column_null_sql(table_name, column_name, options[:null], options[:default]) if options.key?(:null)
           # change_column_comment(table_name, column_name, options[:comment]) if options.key?(:comment)
           if sql_actions.present?
             "#{sql}, #{sql_actions.join(", ")}"
           else
             sql
           end
+        end
+
+        def change_column(table_name, column_name, type, options = {}) #:nodoc:
+          quoted_table_name = quote_table_name(table_name)
+          execute "ALTER TABLE #{quoted_table_name} #{change_column_sql(table_name, column_name, type, options)}"
+
+          change_column_default(table_name, column_name, options[:default]) if options.key?(:default)
+          change_column_null(table_name, column_name, options[:null], options[:default]) if options.key?(:null)
+          change_column_comment(table_name, column_name, options[:comment]) if options.key?(:comment)
         end
 
         # Changes the default value of a table column.
@@ -534,28 +520,22 @@ module ActiveRecord
 
         # Changes the default value of a table column.
         def change_column_default(table_name, column_name, default_or_changes) # :nodoc:
-          clear_cache!
-          column = column_for(table_name, column_name)
-          return unless column
+          execute "ALTER TABLE #{quote_table_name(table_name)} #{change_column_default_sql(table_name, column_name, default_or_changes)}"
+        end
 
-          default = extract_new_default_value(default_or_changes)
-          alter_column_query = "ALTER TABLE #{quote_table_name(table_name)} ALTER COLUMN #{quote_column_name(column_name)} %s"
-          if default.nil?
-            # <tt>DEFAULT NULL</tt> results in the same behavior as <tt>DROP DEFAULT</tt>. However, PostgreSQL will
-            # cast the default to the columns type, which leaves us with a default like "default NULL::character varying".
-            execute alter_column_query % "DROP DEFAULT"
-          else
-            execute alter_column_query % "SET DEFAULT #{quote_default_expression(default, column)}"
+        def change_column_null_sql(table_name, column_name, null, default = nil) #:nodoc:
+          clear_cache!
+          sqls = []
+          unless null || default.nil?
+            column = column_for(table_name, column_name)
+            # TODO: bubble up update outside of ALTER TABLE
+            sqls << "UPDATE #{quote_table_name(table_name)} SET #{quote_column_name(column_name)}=#{quote_default_expression(default, column)} WHERE #{quote_column_name(column_name)} IS NULL" if column
           end
+          "ALTER #{quote_column_name(column_name)} #{null ? 'DROP' : 'SET'} NOT NULL"
         end
 
         def change_column_null(table_name, column_name, null, default = nil) #:nodoc:
-          clear_cache!
-          unless null || default.nil?
-            column = column_for(table_name, column_name)
-            execute("UPDATE #{quote_table_name(table_name)} SET #{quote_column_name(column_name)}=#{quote_default_expression(default, column)} WHERE #{quote_column_name(column_name)} IS NULL") if column
-          end
-          execute("ALTER TABLE #{quote_table_name(table_name)} ALTER #{quote_column_name(column_name)} #{null ? 'DROP' : 'SET'} NOT NULL")
+          execute "ALTER TABLE #{quote_table_name(table_name)} #{change_column_null_sql(table_name, column_name, null, default)}"
         end
 
         # Adds comment for given table column or drops it if +comment+ is a +nil+
