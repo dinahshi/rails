@@ -11,6 +11,11 @@ module ActiveRecord
       clone
     end
 
+    def spawn_with_parent
+      parent = self
+      clone.tap { |c| c.parent = self }
+    end
+
     # Merges in the conditions from <tt>other</tt>, if <tt>other</tt> is an ActiveRecord::Relation.
     # Returns an array representing the intersection of the resulting records with <tt>other</tt>, if <tt>other</tt> is an array.
     #

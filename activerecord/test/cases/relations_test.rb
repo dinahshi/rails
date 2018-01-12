@@ -641,7 +641,14 @@ class RelationTest < ActiveRecord::TestCase
     end
   end
 
-  def test_loading_with_one_association
+  def test_delayed_preloading
+    assert_queries(2) do
+      posts = Post.all.load
+      posts.preload(:comments).load
+    end
+  end
+
+ def test_loading_with_one_association
     posts = Post.preload(:comments)
     post = posts.find { |p| p.id == 1 }
     assert_equal 2, post.comments.size

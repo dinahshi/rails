@@ -18,6 +18,7 @@ module ActiveRecord
     include FinderMethods, Calculations, SpawnMethods, QueryMethods, Batches, Explain, Delegation
 
     attr_reader :table, :klass, :loaded, :predicate_builder
+    attr_accessor :parent
     alias :model :klass
     alias :loaded? :loaded
     alias :locked? :lock_value
@@ -531,29 +532,27 @@ module ActiveRecord
 
       def exec_queries(&block)
         skip_query_cache_if_necessary do
-          @records =
-            if eager_loading?
-              find_with_associations do |relation, join_dependency|
-                if ActiveRecord::NullRelation === relation
-                  []
-                else
-                  rows = connection.select_all(relation.arel, "SQL")
-                  join_dependency.instantiate(rows, &block)
-                end.freeze
+          if parent_is_loaded?
+            @records = @parent.records
+          else
+            @records =
+              if eager_loading?
+                find_with_associations do |relation, join_dependency|
+                  if ActiveRecord::NullRelation === relation
+                    []
+                  else
+                    rows = connection.select_all(relation.arel, "SQL")
+                    join_dependency.instantiate(rows, &block)
+                  end.freeze
+                end
+              else
+                klass.find_by_sql(arel, &block).freeze
               end
-            else
-              klass.find_by_sql(arel, &block).freeze
-            end
 
-          preload = preload_values
-          preload += includes_values unless eager_loading?
-          preloader = nil
-          preload.each do |associations|
-            preloader ||= build_preloader
-            preloader.preload @records, associations
+	    @records.each(&:readonly!) if readonly_value
           end
 
-          @records.each(&:readonly!) if readonly_value
+          preload_associations
 
           @loaded = true
           @records
@@ -567,6 +566,20 @@ module ActiveRecord
           end
         else
           yield
+        end
+      end
+
+      def parent_is_loaded?
+        @parent.present? and @parent.loaded?
+      end
+
+      def preload_associations
+        preload = preload_values
+        preload += includes_values unless eager_loading?
+        preloader = nil
+        preload.each do |associations|
+          preloader ||= build_preloader
+          preloader.preload @records, associations
         end
       end
 

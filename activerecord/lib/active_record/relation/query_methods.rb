@@ -146,7 +146,7 @@ module ActiveRecord
     #   # SELECT "posts".* FROM "posts" WHERE "posts"."user_id" IN (1, 2, 3)
     def preload(*args)
       check_if_method_has_arguments!(:preload, args)
-      spawn.preload!(*args)
+      spawn_with_parent.preload!(*args)
     end
 
     def preload!(*args) # :nodoc:
