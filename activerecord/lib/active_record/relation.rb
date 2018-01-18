@@ -458,8 +458,7 @@ module ActiveRecord
     # Returns true if relation needs eager loading.
     def eager_loading?
       @should_eager_load ||=
-        eager_load_values.any? ||
-        includes_values.any? && (joined_includes_values.any? || references_eager_loaded_tables?)
+        !has_loaded_parent? && (eager_load_values.any? || includes_values_require_eager_loading?)
     end
 
     # Joins that are also marked for preloading. In which case we should just eager load them.
@@ -526,13 +525,17 @@ module ActiveRecord
 
     private
 
+      def includes_values_require_eager_loading?
+        includes_values.any? && (joined_includes_values.any? || references_eager_loaded_tables?)
+      end
+
       def has_join_values?
         joins_values.any? || left_outer_joins_values.any?
       end
 
       def exec_queries(&block)
         skip_query_cache_if_necessary do
-          if parent_is_loaded?
+          if has_loaded_parent?
             @records = @parent.records
           else
             @records =
@@ -569,7 +572,7 @@ module ActiveRecord
         end
       end
 
-      def parent_is_loaded?
+      def has_loaded_parent?
         @parent.present? and @parent.loaded?
       end
 

@@ -641,14 +641,28 @@ class RelationTest < ActiveRecord::TestCase
     end
   end
 
-  def test_delayed_preloading
+  def test_delayed_preload
     assert_queries(2) do
       posts = Post.all.load
-      posts.preload(:comments).load
+      posts.preload(:comments).each { |p| p.comments }
     end
   end
 
- def test_loading_with_one_association
+  def test_delayed_eager_load
+    assert_queries(2) do
+      posts = Post.all.load
+      posts.eager_load(:comments).each { |p| p.comments }
+    end
+  end
+
+  def test_delayed_includes
+    assert_queries(2) do
+      posts = Post.all.load
+      posts.includes(:comments).each { |p| p.comments }
+    end
+  end
+
+  def test_loading_with_one_association
     posts = Post.preload(:comments)
     post = posts.find { |p| p.id == 1 }
     assert_equal 2, post.comments.size

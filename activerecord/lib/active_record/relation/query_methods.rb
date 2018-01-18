@@ -113,7 +113,7 @@ module ActiveRecord
     # the actual table name.
     def includes(*args)
       check_if_method_has_arguments!(:includes, args)
-      spawn.includes!(*args)
+      spawn_with_parent.includes!(*args)
     end
 
     def includes!(*args) # :nodoc:
