@@ -132,7 +132,7 @@ module ActiveRecord
     #   # "users"."id"
     def eager_load(*args)
       check_if_method_has_arguments!(:eager_load, args)
-      spawn.eager_load!(*args)
+      spawn_without_parent.eager_load!(*args)
     end
 
     def eager_load!(*args) # :nodoc:
@@ -166,7 +166,7 @@ module ActiveRecord
     #   # Query now knows the string references posts, so adds a JOIN
     def references(*table_names)
       check_if_method_has_arguments!(:references, table_names)
-      spawn.references!(*table_names)
+      spawn_without_parent.references!(*table_names)
     end
 
     def references!(*table_names) # :nodoc:
@@ -227,7 +227,7 @@ module ActiveRecord
       end
 
       raise ArgumentError, "Call `select' with at least one field" if fields.empty?
-      spawn._select!(*fields)
+      spawn_without_parent._select!(*fields)
     end
 
     def _select!(*fields) # :nodoc:
@@ -261,7 +261,7 @@ module ActiveRecord
     #   # => [#<User id: 1, first_name: "Bill">, #<User id: 2, first_name: "Earl">, #<User id: 3, first_name: "Beto">]
     def group(*args)
       check_if_method_has_arguments!(:group, args)
-      spawn.group!(*args)
+      spawn_without_parent.group!(*args)
     end
 
     def group!(*args) # :nodoc:
@@ -292,7 +292,7 @@ module ActiveRecord
     #   # SELECT "users".* FROM "users" ORDER BY name DESC, email
     def order(*args)
       check_if_method_has_arguments!(:order, args)
-      spawn.order!(*args)
+      spawn_without_parent.order!(*args)
     end
 
     # Same as #order but operates on relation in-place instead of copying.
@@ -314,7 +314,7 @@ module ActiveRecord
     # generates a query with 'ORDER BY id ASC, name ASC'.
     def reorder(*args)
       check_if_method_has_arguments!(:reorder, args)
-      spawn.reorder!(*args)
+      spawn_without_parent.reorder!(*args)
     end
 
     # Same as #reorder but operates on relation in-place instead of copying.
@@ -365,7 +365,7 @@ module ActiveRecord
     #
     def unscope(*args)
       check_if_method_has_arguments!(:unscope, args)
-      spawn.unscope!(*args)
+      spawn_without_parent.unscope!(*args)
     end
 
     def unscope!(*args) # :nodoc:
@@ -427,7 +427,7 @@ module ActiveRecord
     #   # SELECT "users".* FROM "users" LEFT JOIN bookmarks ON bookmarks.bookmarkable_type = 'Post' AND bookmarks.user_id = users.id
     def joins(*args)
       check_if_method_has_arguments!(:joins, args)
-      spawn.joins!(*args)
+      spawn_without_parent.joins!(*args)
     end
 
     def joins!(*args) # :nodoc:
@@ -444,7 +444,7 @@ module ActiveRecord
     #
     def left_outer_joins(*args)
       check_if_method_has_arguments!(__callee__, args)
-      spawn.left_outer_joins!(*args)
+      spawn_without_parent.left_outer_joins!(*args)
     end
     alias :left_joins :left_outer_joins
 
@@ -576,11 +576,11 @@ module ActiveRecord
     # the current relation.
     def where(opts = :chain, *rest)
       if :chain == opts
-        WhereChain.new(spawn)
+        WhereChain.new(spawn_without_parent)
       elsif opts.blank?
         self
       else
-        spawn.where!(opts, *rest)
+        spawn_without_parent.where!(opts, *rest)
       end
     end
 
@@ -623,7 +623,7 @@ module ActiveRecord
         raise ArgumentError, "You have passed #{other.class.name} object to #or. Pass an ActiveRecord::Relation object instead."
       end
 
-      spawn.or!(other)
+      spawn_without_parent.or!(other)
     end
 
     def or!(other) # :nodoc:
@@ -662,7 +662,7 @@ module ActiveRecord
     #
     #   User.limit(10).limit(20) # generated SQL has 'LIMIT 20'
     def limit(value)
-      spawn.limit!(value)
+      spawn_without_parent.limit!(value)
     end
 
     def limit!(value) # :nodoc:
@@ -689,7 +689,7 @@ module ActiveRecord
     # Specifies locking settings (default to +true+). For more information
     # on locking, please see ActiveRecord::Locking.
     def lock(locks = true)
-      spawn.lock!(locks)
+      spawn_without_parent.lock!(locks)
     end
 
     def lock!(locks = true) # :nodoc:
@@ -732,7 +732,7 @@ module ActiveRecord
     #   end
     #
     def none
-      spawn.none!
+      spawn_without_parent.none!
     end
 
     def none! # :nodoc:
@@ -746,7 +746,7 @@ module ActiveRecord
     #   users.first.save
     #   => ActiveRecord::ReadOnlyRecord: User is marked as readonly
     def readonly(value = true)
-      spawn.readonly!(value)
+      spawn_without_parent.readonly!(value)
     end
 
     def readonly!(value = true) # :nodoc:
@@ -796,7 +796,7 @@ module ActiveRecord
     #   # SELECT a.title FROM (SELECT * FROM topics WHERE approved = 't') a
     #
     def from(value, subquery_name = nil)
-      spawn.from!(value, subquery_name)
+      spawn_without_parent.from!(value, subquery_name)
     end
 
     def from!(value, subquery_name = nil) # :nodoc:
@@ -815,7 +815,7 @@ module ActiveRecord
     #   User.select(:name).distinct.distinct(false)
     #   # You can also remove the uniqueness
     def distinct(value = true)
-      spawn.distinct!(value)
+      spawn_without_parent.distinct!(value)
     end
 
     # Like #distinct, but modifies relation in place.
@@ -862,7 +862,7 @@ module ActiveRecord
     #   end
     def extending(*modules, &block)
       if modules.any? || block
-        spawn.extending!(*modules, &block)
+        spawn_without_parent.extending!(*modules, &block)
       else
         self
       end
@@ -882,7 +882,7 @@ module ActiveRecord
     #
     #   User.order('name ASC').reverse_order # generated SQL has 'ORDER BY name DESC'
     def reverse_order
-      spawn.reverse_order!
+      spawn_without_parent.reverse_order!
     end
 
     def reverse_order! # :nodoc:
