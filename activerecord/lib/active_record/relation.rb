@@ -529,11 +529,14 @@ module ActiveRecord
                 else
                   rows = connection.select_all(relation.arel, "SQL")
                   join_dependency.instantiate(rows, &block)
-                end.freeze
+                end
               end
             else
-              klass.find_by_sql(arel, &block).freeze
+              klass.find_by_sql(arel, &block)
             end
+
+          retain_positionals if keep_preloaded_positions?
+          @records.freeze
 
           preload = preload_values
           preload += includes_values unless eager_loading?
@@ -558,6 +561,19 @@ module ActiveRecord
           end
         else
           yield
+        end
+      end
+
+      def keep_preloaded_positions?
+        order_values.empty?
+      end
+
+      def retain_positionals
+        if @offsets.all? { |offset, record| @records[offset] == record }
+          @offsets.each { |offset, record| @records[offset] = record }
+        else
+          @records -= @offsets.values
+          @offsets.sort.each { |offset, record| @records[offset, 0] = record }
         end
       end
 
