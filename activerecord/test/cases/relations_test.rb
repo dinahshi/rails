@@ -648,17 +648,18 @@ class RelationTest < ActiveRecord::TestCase
     end
   end
 
-  def test_delayed_eager_load
-    assert_queries(2) do
-      posts = Post.all.load
-      posts.eager_load(:comments).each { |p| p.comments }
-    end
-  end
-
   def test_delayed_includes
     assert_queries(2) do
       posts = Post.all.load
       posts.includes(:comments).each { |p| p.comments }
+    end
+  end
+
+  def test_delayed_includes_does_not_use_join
+    assert_queries(2) do
+      posts = Post.all.eager_load(:readers).load
+      posts.includes(:comments).each { |p| p.comments }
+      assert_not_includes posts.includes(:comments).to_sql, "JOIN"
     end
   end
 
