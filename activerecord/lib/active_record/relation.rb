@@ -573,7 +573,7 @@ module ActiveRecord
       end
 
       def has_loaded_parent?
-        @parent.present? and @parent.loaded?
+        @parent and @parent.loaded?
       end
 
       def preload_associations
