@@ -18,7 +18,8 @@ module ActiveRecord
     include FinderMethods, Calculations, SpawnMethods, QueryMethods, Batches, Explain, Delegation
 
     attr_reader :table, :klass, :loaded, :predicate_builder
-    attr_accessor :parent
+    attr_accessor :parent, :use_parent_records
+
     alias :model :klass
     alias :loaded? :loaded
     alias :locked? :lock_value
@@ -458,7 +459,7 @@ module ActiveRecord
     # Returns true if relation needs eager loading.
     def eager_loading?
       @should_eager_load ||=
-        !has_loaded_parent? && (eager_load_values.any? || includes_values_require_eager_loading?)
+        !use_records_loaded_by_parent? && (eager_load_values.any? || includes_values_require_eager_loading?)
     end
 
     # Joins that are also marked for preloading. In which case we should just eager load them.
@@ -535,7 +536,7 @@ module ActiveRecord
 
       def exec_queries(&block)
         skip_query_cache_if_necessary do
-          if has_loaded_parent?
+          if use_records_loaded_by_parent?
             @records = @parent.records
           else
             @records =
@@ -572,8 +573,8 @@ module ActiveRecord
         end
       end
 
-      def has_loaded_parent?
-        @parent and @parent.loaded?
+      def use_records_loaded_by_parent?
+        use_parent_records && @parent&.loaded?
       end
 
       def preload_associations

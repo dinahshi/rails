@@ -8,17 +8,11 @@ module ActiveRecord
   module SpawnMethods
     # This is overridden by Associations::CollectionProxy
     def spawn #:nodoc:
-      clone
+      clone.tap { |c| c.parent = self; c.use_parent_records = false }
     end
 
     def spawn_with_parent
-      parent = self
-      clone.tap { |c| c.parent = self }
-    end
-
-    def spawn_without_parent
-      parent = self
-      clone.tap { |c| c.parent = nil }
+      clone.tap { |c| c.parent = self; c.use_parent_records = true }
     end
 
     # Merges in the conditions from <tt>other</tt>, if <tt>other</tt> is an ActiveRecord::Relation.
