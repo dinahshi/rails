@@ -18,6 +18,8 @@ module ActiveRecord
     include FinderMethods, Calculations, SpawnMethods, QueryMethods, Batches, Explain, Delegation
 
     attr_reader :table, :klass, :loaded, :predicate_builder
+    attr_accessor :parent, :use_parent_records
+
     alias :model :klass
     alias :loaded? :loaded
     alias :locked? :lock_value
@@ -457,8 +459,7 @@ module ActiveRecord
     # Returns true if relation needs eager loading.
     def eager_loading?
       @should_eager_load ||=
-        eager_load_values.any? ||
-        includes_values.any? && (joined_includes_values.any? || references_eager_loaded_tables?)
+        !use_records_loaded_by_parent? && (eager_load_values.any? || includes_values_require_eager_loading?)
     end
 
     # Joins that are also marked for preloading. In which case we should just eager load them.
@@ -525,35 +526,37 @@ module ActiveRecord
 
     private
 
+      def includes_values_require_eager_loading?
+        includes_values.any? && (joined_includes_values.any? || references_eager_loaded_tables?)
+      end
+
       def has_join_values?
         joins_values.any? || left_outer_joins_values.any?
       end
 
       def exec_queries(&block)
         skip_query_cache_if_necessary do
-          @records =
-            if eager_loading?
-              find_with_associations do |relation, join_dependency|
-                if ActiveRecord::NullRelation === relation
-                  []
-                else
-                  rows = connection.select_all(relation.arel, "SQL")
-                  join_dependency.instantiate(rows, &block)
-                end.freeze
+          if use_records_loaded_by_parent?
+            @records = @parent.records
+          else
+            @records =
+              if eager_loading?
+                find_with_associations do |relation, join_dependency|
+                  if ActiveRecord::NullRelation === relation
+                    []
+                  else
+                    rows = connection.select_all(relation.arel, "SQL")
+                    join_dependency.instantiate(rows, &block)
+                  end.freeze
+                end
+              else
+                klass.find_by_sql(arel, &block).freeze
               end
-            else
-              klass.find_by_sql(arel, &block).freeze
-            end
 
-          preload = preload_values
-          preload += includes_values unless eager_loading?
-          preloader = nil
-          preload.each do |associations|
-            preloader ||= build_preloader
-            preloader.preload @records, associations
+	    @records.each(&:readonly!) if readonly_value
           end
 
-          @records.each(&:readonly!) if readonly_value
+          preload_associations
 
           @loaded = true
           @records
@@ -567,6 +570,20 @@ module ActiveRecord
           end
         else
           yield
+        end
+      end
+
+      def use_records_loaded_by_parent?
+        use_parent_records && @parent&.loaded?
+      end
+
+      def preload_associations
+        preload = preload_values
+        preload += includes_values unless eager_loading?
+        preloader = nil
+        preload.each do |associations|
+          preloader ||= build_preloader
+          preloader.preload @records, associations
         end
       end
 
