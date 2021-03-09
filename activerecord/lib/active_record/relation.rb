@@ -8,7 +8,8 @@ module ActiveRecord
                             :extending, :unscope, :optimizer_hints, :annotate]
 
     SINGLE_VALUE_METHODS = [:limit, :offset, :lock, :readonly, :reordering, :strict_loading,
-                            :reverse_order, :distinct, :create_with, :skip_query_cache]
+                            :reverse_order, :distinct, :create_with, :skip_query_cache,
+                            :strict_loading_associations]
 
     CLAUSE_METHODS = [:where, :having, :from]
     INVALID_METHODS_FOR_DELETE_ALL = [:distinct, :group, :having]
@@ -903,7 +904,7 @@ module ActiveRecord
           preload_associations(records) unless skip_preloading_value
 
           records.each(&:readonly!) if readonly_value
-          records.each(&:strict_loading!) if strict_loading_value
+          records.each { |r| r.strict_loading!(on_association_type: strict_loading_associations_value) } if strict_loading_value
 
           records
         end

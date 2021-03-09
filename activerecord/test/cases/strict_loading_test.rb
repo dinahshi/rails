@@ -68,6 +68,35 @@ class StrictLoadingTest < ActiveRecord::TestCase
     Developer.strict_loading.each { |d| assert d.strict_loading? }
   end
 
+  def test_relation_strict_loading_on_association_type
+    developer = Developer.first
+    ship = Ship.first
+    part = ShipPart.create!(name: "Stern", ship: ship)
+    firm = Firm.create!("name" => "NASA")
+    project = Project.create!(name: "Apollo", firm: firm)
+
+    ship.update_column(:developer_id, developer.id)
+    developer.projects << project
+
+    developer = Developer.strict_loading(on_association_type: [:has_many]).first
+    assert_predicate developer, :strict_loading?
+
+    assert_nothing_raised do
+      # Does not raise when loading a has_many association (:projects)
+      developer.projects.to_a
+
+      # Does not raise when a belongs_to association (:ship) loads its
+      # has_many association (:parts)
+      developer.ship.parts.to_a
+    end
+
+    # strict_loading is enabled for has_many associations
+    assert developer.projects.all?(&:strict_loading?)
+    assert_raises ActiveRecord::StrictLoadingViolationError do
+      developer.projects.map(&:firm)
+    end
+  end
+
   def test_strict_loading_by_default
     with_strict_loading_by_default(Developer) do
       Developer.all.each { |d| assert d.strict_loading? }
