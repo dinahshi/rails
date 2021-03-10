@@ -900,13 +900,12 @@ module ActiveRecord
     #   user = User.strict_loading.first
     #   user.comments.to_a
     #   => ActiveRecord::StrictLoadingViolationError
-    def strict_loading(value = true, on_association_type: [])
-      spawn.strict_loading!(value, on_association_type: on_association_type)
+    def strict_loading(value = true)
+      spawn.strict_loading!(value)
     end
 
-    def strict_loading!(value = true, on_association_type: []) # :nodoc:
+    def strict_loading!(value = true) # :nodoc:
       self.strict_loading_value = value
-      self.strict_loading_associations_value = on_association_type
       self
     end
 
