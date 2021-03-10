@@ -140,7 +140,7 @@ module ActiveRecord
       mattr_accessor :action_on_strict_loading_violation, instance_accessor: false, default: :raise
 
       class_attribute :strict_loading_by_default, instance_accessor: false, default: false
-      class_attribute :strict_loading_associations, instance_accessor: true, default: []
+      class_attribute :strict_loading_mode, instance_accessor: true, default: []
 
       mattr_accessor :writing_role, instance_accessor: false, default: :writing
 
@@ -729,13 +729,13 @@ module ActiveRecord
     #   user.strict_loading!(false) # => false
     #   user.comments
     #   => #<ActiveRecord::Associations::CollectionProxy>
-    def strict_loading!(value = true, on_association_type: [])
+    def strict_loading!(value = true, mode: :all)
       @strict_loading = value
-      @strict_loading_associations = on_association_type
+      @strict_loading_mode = mode
     end
 
-    def strict_loading_associations
-      @strict_loading_associations
+    def strict_loading_n_plus_one_only?
+      @strict_loading_mode == :n_plus_one_only
     end
 
     # Marks this record as read only.
@@ -821,7 +821,7 @@ module ActiveRecord
         @destroyed_by_association = nil
         @_start_transaction_state = nil
         @strict_loading           = self.class.strict_loading_by_default
-        @strict_loading_associations = self.class.strict_loading_associations
+        @strict_loading_mode = self.class.strict_loading_mode
 
         self.class.define_attribute_methods
       end

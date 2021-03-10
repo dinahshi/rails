@@ -45,7 +45,7 @@ class StrictLoadingTest < ActiveRecord::TestCase
     developer.projects << project
     developer.reload
 
-    developer.strict_loading!(on_association_type: [:has_many])
+    developer.strict_loading!(mode: :n_plus_one_only)
     assert_predicate developer, :strict_loading?
 
     # Does not raise when loading a has_many association (:projects)

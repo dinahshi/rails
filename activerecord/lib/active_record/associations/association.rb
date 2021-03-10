@@ -228,16 +228,16 @@ module ActiveRecord
           binds = AssociationScope.get_bind_values(owner, reflection.chain)
           sc.execute(binds, klass.connection) do |record|
             set_inverse_instance(record)
-            if owner.strict_loading_associations.include?(reflection.macro)
+            if owner.strict_loading_n_plus_one_only? && reflection.macro == :has_many
               record.strict_loading!
             else
-              record.strict_loading_associations = owner.strict_loading_associations
+              record.strict_loading_mode = owner.strict_loading_mode
             end
           end
         end
 
         def violates_strict_loading?
-          (owner.strict_loading? && owner.strict_loading_associations.empty?) || reflection.strict_loading?
+          (owner.strict_loading? && !owner.strict_loading_n_plus_one_only?) || reflection.strict_loading?
         end
 
         # The scope for this association.
