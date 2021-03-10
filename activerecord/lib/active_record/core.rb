@@ -730,6 +730,10 @@ module ActiveRecord
     #   user.comments
     #   => #<ActiveRecord::Associations::CollectionProxy>
     def strict_loading!(value = true, mode: :all)
+      unless [:all, :n_plus_one_only].include?(mode)
+        raise ArgumentError, "`mode` must be one of `:all`, `:n_plus_one_only`."
+      end
+
       @strict_loading = value
       @strict_loading_mode = mode
     end
