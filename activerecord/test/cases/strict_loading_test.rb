@@ -10,6 +10,7 @@ require "models/ship"
 require "models/ship_part"
 require "models/strict_zine"
 require "models/interest"
+require "models/treasure"
 
 class StrictLoadingTest < ActiveRecord::TestCase
   fixtures :developers, :developers_projects, :projects, :ships
@@ -47,19 +48,28 @@ class StrictLoadingTest < ActiveRecord::TestCase
     developer.strict_loading!(on_association_type: [:has_many])
     assert_predicate developer, :strict_loading?
 
+    # Does not raise when loading a has_many association (:projects)
     assert_nothing_raised do
-      # Does not raise when loading a has_many association (:projects)
       developer.projects.to_a
-
-      # Does not raise when a belongs_to association (:ship) loads its
-      # has_many association (:parts)
-      developer.ship.parts.to_a
     end
 
     # strict_loading is enabled for has_many associations
     assert developer.projects.all?(&:strict_loading?)
     assert_raises ActiveRecord::StrictLoadingViolationError do
       developer.projects.map(&:firm)
+    end
+
+    # Does not raise when a belongs_to association (:ship) loads its
+    # has_many association (:parts)
+    assert_nothing_raised do
+      developer.ship.parts.to_a
+    end
+
+    # strict_loading is enabled for has_many through a belongs_to
+    refute developer.ship.strict_loading?
+    assert developer.ship.parts.all?(&:strict_loading?)
+    assert_raises ActiveRecord::StrictLoadingViolationError do
+      developer.ship.parts.first.trinkets.to_a
     end
   end
 

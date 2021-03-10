@@ -228,7 +228,11 @@ module ActiveRecord
           binds = AssociationScope.get_bind_values(owner, reflection.chain)
           sc.execute(binds, klass.connection) do |record|
             set_inverse_instance(record)
-            record.strict_loading! if owner.strict_loading_associations.include?(reflection.macro)
+            if owner.strict_loading_associations.include?(reflection.macro)
+              record.strict_loading!
+            else
+              record.strict_loading_associations = owner.strict_loading_associations
+            end
           end
         end
 
