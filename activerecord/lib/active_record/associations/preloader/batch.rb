@@ -17,7 +17,9 @@ module ActiveRecord
             if already_loaded.any?
               already_loaded.each(&:run)
             elsif loaders.any?
-              future_tables = branches.flat_map(&:children).flat_map(&:referenced_tables).uniq
+              future_tables = branches.flat_map do |branch|
+                branch.future_classes - branch.runnable_loaders.map(&:klass)
+              end.map(&:table_name).uniq
 
               target_loaders = loaders.reject { |l| future_tables.include?(l.table_name)  }
               target_loaders = loaders if target_loaders.empty?

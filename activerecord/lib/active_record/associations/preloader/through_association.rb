@@ -45,6 +45,18 @@ module ActiveRecord
           end
         end
 
+        def future_classes
+          if run? || already_loaded?
+            []
+          elsif through_preloaders.all?(&:run?)
+            source_preloaders.flat_map(&:future_classes)
+          else
+            through_classes = through_preloaders.flat_map(&:future_classes)
+            source_classes = source_reflection.chain.reject(&:polymorphic?).map(&:klass)
+            through_classes + source_classes
+          end
+        end
+
         private
           def source_preloaders
             @source_preloaders ||= ActiveRecord::Associations::Preloader.new(records: middle_records, associations: source_reflection.name, scope: scope, associate_by_default: false).loaders

@@ -18,12 +18,24 @@ module ActiveRecord
           @loaders = nil
         end
 
-        def referenced_classes
-          (target_classes + children.flat_map(&:referenced_classes)).uniq
+        def future_classes
+          (immediate_future_classes + children.flat_map(&:future_classes)).uniq
         end
 
-        def referenced_tables
-          (referenced_classes).map(&:table_name).uniq
+        def immediate_future_classes
+          if parent.done?
+            loaders.flat_map(&:future_classes).uniq
+          else
+            parent.target_classes.flat_map do |klass|
+              reflection = klass._reflect_on_association(@association)
+              next [] unless reflection
+
+              reflection.
+                chain.
+                reject { |reflection| reflection.respond_to?(:polymorphic?) && reflection.polymorphic? }.
+                map(&:klass)
+            end.uniq
+          end
         end
 
         def target_classes
@@ -31,14 +43,13 @@ module ActiveRecord
             loaders.map(&:klass).uniq
           else
             parent.target_classes.map do |klass|
-              assoc = klass._reflect_on_association(@association)
-              assoc.klass if assoc && !assoc.polymorphic?
-            end.uniq.compact
-          end
-        end
+              reflection = klass._reflect_on_association(@association)
+              next unless reflection
+              next if reflection.polymorphic?
 
-        def target_tables
-          target_classes.map(&:table_name).uniq
+              reflection.klass
+            end.compact.uniq
+          end
         end
 
         def root?
