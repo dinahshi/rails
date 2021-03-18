@@ -29,10 +29,10 @@ module ActiveRecord
             parent.target_classes.flat_map do |klass|
               reflection = klass._reflect_on_association(@association)
               next [] unless reflection
+              next [] if reflection.polymorphic?
 
               reflection.
                 chain.
-                reject { |reflection| reflection.respond_to?(:polymorphic?) && reflection.polymorphic? }.
                 map(&:klass)
             end.uniq
           end
