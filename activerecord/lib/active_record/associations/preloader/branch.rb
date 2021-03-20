@@ -26,11 +26,7 @@ module ActiveRecord
           if parent.done?
             loaders.flat_map(&:future_classes).uniq
           else
-            parent.target_classes.flat_map do |klass|
-              reflection = klass._reflect_on_association(@association)
-              next [] unless reflection
-              next [] if reflection.polymorphic?
-
+            likely_reflections.reject(&:polymorphic?).flat_map do |reflection|
               reflection.
                 chain.
                 map(&:klass)
@@ -39,17 +35,20 @@ module ActiveRecord
         end
 
         def target_classes
-          if parent.done?
+          if done?
+            preloaded_records.map(&:klass)
+          elsif parent.done?
             loaders.map(&:klass).uniq
           else
-            parent.target_classes.map do |klass|
-              reflection = klass._reflect_on_association(@association)
-              next unless reflection
-              next if reflection.polymorphic?
-
-              reflection.klass
-            end.compact.uniq
+            likely_reflections.reject(&:polymorphic?).map(&:klass).uniq
           end
+        end
+
+        def likely_reflections
+          parent_classes = parent.target_classes
+          parent_classes.map do |parent_klass|
+            parent_klass._reflect_on_association(@association)
+          end.compact
         end
 
         def root?
