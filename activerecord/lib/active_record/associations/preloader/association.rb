@@ -56,16 +56,12 @@ module ActiveRecord
           @klass.table_name
         end
 
-        def already_loaded?
-          @already_loaded ||= owners.all? { |o| o.association(reflection.name).loaded? }
-        end
-
         def data_available?
           already_loaded?
         end
 
         def future_classes
-          if run? || already_loaded?
+          if already_loaded? || run?
             []
           else
             [@klass]
@@ -168,6 +164,10 @@ module ActiveRecord
 
         private
           attr_reader :owners, :reflection, :preload_scope, :model
+
+          def already_loaded?
+            @already_loaded ||= owners.all? { |o| o.association(reflection.name).loaded? }
+          end
 
           def fetch_from_preloaded_records
             @records_by_owner = owners.index_with do |owner|

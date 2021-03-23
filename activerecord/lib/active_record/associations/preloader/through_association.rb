@@ -42,14 +42,10 @@ module ActiveRecord
         end
 
         def runnable_loaders
-          if already_loaded?
+          if already_loaded? || data_available?
             [self]
           elsif through_preloaders.all?(&:run?)
-            if source_preloaders.all?(&:run?)
-              [self]
-            else
-              source_preloaders.flat_map(&:runnable_loaders)
-            end
+            source_preloaders.flat_map(&:runnable_loaders)
           else
             through_preloaders.flat_map(&:runnable_loaders)
           end

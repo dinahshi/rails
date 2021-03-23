@@ -12,10 +12,10 @@ module ActiveRecord
           branches = @preloaders.flat_map(&:branches)
           until branches.empty?
             loaders = branches.flat_map(&:runnable_loaders)
+            run_immediately = loaders.select(&:data_available?)
 
-            already_loaded = loaders.select(&:data_available?)
-            if already_loaded.any?
-              already_loaded.each(&:run)
+            if run_immediately.any?
+              run_immediately.each(&:run)
             elsif loaders.any?
               future_tables = branches.flat_map do |branch|
                 branch.future_classes - branch.runnable_loaders.map(&:klass)
@@ -29,7 +29,6 @@ module ActiveRecord
             end
 
             finished, in_progress = branches.partition(&:done?)
-
             branches = in_progress + finished.flat_map(&:children)
           end
         end
