@@ -60,6 +60,10 @@ module ActiveRecord
           @already_loaded ||= owners.all? { |o| o.association(reflection.name).loaded? }
         end
 
+        def data_available?
+          already_loaded?
+        end
+
         def future_classes
           if run? || already_loaded?
             []

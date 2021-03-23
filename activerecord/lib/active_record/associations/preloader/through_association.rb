@@ -35,11 +35,21 @@ module ActiveRecord
           end
         end
 
+        def data_available?
+          return true if super()
+          through_preloaders.all?(&:run?) &&
+            source_preloaders.all?(&:run?)
+        end
+
         def runnable_loaders
           if already_loaded?
             [self]
           elsif through_preloaders.all?(&:run?)
-            [self] + source_preloaders.flat_map(&:runnable_loaders)
+            if source_preloaders.all?(&:run?)
+              [self]
+            else
+              source_preloaders.flat_map(&:runnable_loaders)
+            end
           else
             through_preloaders.flat_map(&:runnable_loaders)
           end
@@ -52,7 +62,10 @@ module ActiveRecord
             source_preloaders.flat_map(&:future_classes)
           else
             through_classes = through_preloaders.flat_map(&:future_classes)
-            source_classes = source_reflection.chain.reject(&:polymorphic?).map(&:klass)
+            source_classes = source_reflection.
+              chain.
+              reject { |x| x.respond_to?(:polymorphic?) && x.polymorphic? }.
+              map(&:klass)
             through_classes + source_classes
           end
         end

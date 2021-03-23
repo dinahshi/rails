@@ -13,7 +13,7 @@ module ActiveRecord
           until branches.empty?
             loaders = branches.flat_map(&:runnable_loaders)
 
-            already_loaded = loaders.select(&:already_loaded?)
+            already_loaded = loaders.select(&:data_available?)
             if already_loaded.any?
               already_loaded.each(&:run)
             elsif loaders.any?
